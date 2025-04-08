@@ -28,13 +28,14 @@ param logAnalyticsWorkspaceName string
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
   location: location
+  tags: tags
   kind: 'linux'
   properties: {
     reserved: true
   }
   sku: {
     name: appServicePlanSku
-  }
+  }  
 }
 
 resource existingWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {

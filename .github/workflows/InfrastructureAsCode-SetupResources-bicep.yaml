@@ -1,0 +1,99 @@
+name: 1 - InfrastructureAsCode - Setup resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      stepsToRun:
+        description: 'Steps to run'
+        required: true
+        default: 'Validate and WhatIf'
+        type: choice
+        options:
+          - Setup resource group
+          - Validate and WhatIf
+          - Validate, WhatIf and Create
+     
+env:
+  resourceGroup: rg-Salfjallet
+  resourceLocation: swedencentral
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-validate-whatif:
+    name: Run Validate and WhatIf
+    if:  ${{ inputs.stepsToRun == 'Validate and WhatIf' || inputs.stepsToRun == 'Validate, WhatIf and Create' }} 
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deployment - Validate
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: validate
+          name: ci-deploy-validate
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ env.resourceGroup }}
+          scope: resourceGroup
+          template-file: deploy/main-ghostblog.bicep
+          parameters: '{"location": "${{ env.resourceLocation }}"}'
+
+      - name: Deployment - WhatIf
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: whatIf
+          name: ci-deploy-whatif
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ env.resourceGroup }}
+          scope: resourceGroup
+          template-file: deploy/main-ghostblog.bicep
+          parameters: '{"location": "${{ env.resourceLocation }}"}'
+
+  deploy-create:
+    needs: deploy-validate-whatif
+    name: Create
+    if:  ${{ inputs.stepsToRun == 'Validate, WhatIf and Create' }} 
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deployment - Create
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: create
+          name: ci-deploy-create          
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ env.resourceGroup }}
+          scope: resourceGroup
+          template-file: deploy/main-ghostblog.bicep
+          parameters: '{"location": "${{ env.resourceLocation }}"}'
+
+      - name: Azure logout via Azure CLI
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az logout
+            az cache purge
+            az account clear
